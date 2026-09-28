@@ -1,0 +1,16 @@
+# Optional: use local MySQL (127.0.0.1:3306) with DB_* in .env instead.
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: north-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: north
+    volumes:
+      - north_mysql_data:/var/lib/mysql
+      - ./sql/north.sql:/docker-entrypoint-initdb.d/north.sql:ro
+
+volumes:
+  north_mysql_data:

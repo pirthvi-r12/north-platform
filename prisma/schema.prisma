@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  DESIGNER
+  CLIENT
+}
+
+enum ProjectStatus {
+  DISCOVERY
+  DESIGN
+  DEVELOPMENT
+  REVIEW
+  LAUNCHED
+  ON_HOLD
+}
+
+enum InvoiceStatus {
+  PAID
+  UNPAID
+  OVERDUE
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String?
+  email        String   @unique
+  passwordHash String?
+  role         Role     @default(CLIENT)
+  image        String?
+  emailVerified DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accounts       Account[]
+  sessions       Session[]
+  assignedProjects Project[] @relation("ProjectAssignee")
+  clientProjects   Project[] @relation("ProjectClient")
+  designComments   DesignComment[]
+  chatMessages     ChatMessage[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  title       String
+  status      ProjectStatus @default(DISCOVERY)
+  progress    Int           @default(0)
+  budget      Decimal       @db.Decimal(12, 2)
+  deadline    DateTime?
+  clientId    String
+  assignedTo  String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  client   User   @relation("ProjectClient", fields: [clientId], references: [id])
+  assignee User?  @relation("ProjectAssignee", fields: [assignedTo], references: [id])
+
+  milestones      Milestone[]
+  invoices        Invoice[]
+  designComments  DesignComment[]
+  chatThreads     ChatThread[]
+  designVersions  DesignVersion[]
+  assets          DigitalAsset[]
+}
+
+model Milestone {
+  id          String   @id @default(cuid())
+  projectId   String
+  title       String
+  isCompleted Boolean  @default(false)
+  dueDate     DateTime?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Invoice {
+  id                    String        @id @default(cuid())
+  projectId             String
+  amount                Decimal       @db.Decimal(12, 2)
+  currency              String        @default("usd")
+  status                InvoiceStatus @default(UNPAID)
+  stripePaymentIntentId String?
+  dueDate               DateTime?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model CaseStudy {
+  id         String   @id @default(cuid())
+  title      String
+  slug       String   @unique
+  category   String
+  clientName String
+  coverImage String
+  contentJson Json
+  featured   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model DesignComment {
+  id                    String   @id @default(cuid())
+  projectId             String
+  authorId              String
+  commentText           String
+  canvasCoordinatesJson Json
+  resolved              Boolean  @default(false)
+  createdAt             DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  User    @relation(fields: [authorId], references: [id])
+}
+
+model ChatThread {
+  id        String   @id @default(cuid())
+  projectId String
+  subject   String
+  createdAt DateTime @default(now())
+
+  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  threadId    String
+  authorId    String
+  body        String
+  attachmentUrl String?
+  createdAt   DateTime @default(now())
+
+  thread ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author User       @relation(fields: [authorId], references: [id])
+}
+
+model DesignVersion {
+  id          String   @id @default(cuid())
+  projectId   String
+  label       String
+  previewUrl  String
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model DigitalAsset {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  fileType    String
+  downloadUrl String
+  sizeBytes   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model JournalPost {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  excerpt     String
+  body        String   @db.Text
+  readMinutes Int      @default(5)
+  publishedAt DateTime @default(now())
+}
+
+model OnboardingSubmission {
+  id        String   @id @default(cuid())
+  clientEmail String
+  payloadJson Json
+  createdAt DateTime @default(now())
+}
